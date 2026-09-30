@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gemini AI 動画字幕翻訳</title>
+<style>
+*{box-sizing:border-box}
+:root{
+  --bg:#0f1020;--panel:#17182b;--panel2:#1d1f35;--line:#30324e;
+  --text:#f5f5fa;--muted:#9da0bb;--accent:#7c5cff;--accent2:#5f46d8;
+  --danger:#ff6b7a;--ok:#42d392;
+}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.app{max-width:1400px;margin:auto;padding:22px}
+header{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:18px}
+h1{font-size:22px;margin:0}
+.sub{color:var(--muted);font-size:13px;margin-top:5px}
+.grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(360px,.75fr);gap:18px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.toolbar{padding:14px;border-bottom:1px solid var(--line);display:grid;gap:10px}
+.controls{display:grid;grid-template-columns:1fr 180px auto;gap:10px}
+input,select,textarea{background:#101123;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:10px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+button{border:0;border-radius:9px;padding:11px 15px;background:var(--accent);color:#fff;font-weight:700}
+button:hover{background:var(--accent2)}
+button.secondary{background:#292b45}
+button.danger{background:#542430}
+button:disabled{opacity:.5;cursor:not-allowed}
+.player-wrap{background:#090a12;padding:14px}
+.video-stage{position:relative;background:#000;border-radius:10px;overflow:hidden}
+video{display:block;width:100%;max-height:62vh;background:#000}
+.subtitle-overlay{position:absolute;left:5%;right:5%;z-index:3;display:none;justify-content:center;pointer-events:none;text-align:center}
+.subtitle-overlay.show{display:flex}
+.subtitle-overlay.bottom{bottom:7%}
+.subtitle-overlay.center{top:50%;transform:translateY(-50%)}
+.subtitle-overlay span{display:inline-block;max-width:92%;padding:6px 12px;color:#fff;font-weight:800;font-size:clamp(16px,2.5vw,30px);line-height:1.45;white-space:pre-wrap;text-shadow:0 2px 3px #000,2px 0 2px #000,-2px 0 2px #000,0 -2px 2px #000;background:rgba(0,0,0,.32);border-radius:5px}
+.overlay-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:12px}
+.overlay-controls select{padding:7px 9px}
+.player-info{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:12px;padding-top:10px}
+.status{margin-top:10px;padding:11px;border-radius:9px;background:#111326;color:#c7c9dc;white-space:pre-wrap;font-size:13px;line-height:1.5}
+.status.error{color:#ff9ba6}.status.success{color:#72e2ad}
+.progress{height:6px;background:#292b45;border-radius:99px;overflow:hidden;margin-top:9px}
+.progress>div{height:100%;width:0;background:var(--accent);transition:.25s}
+.editor{display:flex;flex-direction:column;min-height:500px}
+.editor-head{padding:14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center}
+.editor-head strong{font-size:15px}.count{color:var(--muted);font-size:12px}
+.timeline{overflow:auto;max-height:calc(100vh - 180px);padding:10px}
+.empty{padding:40px 20px;text-align:center;color:var(--muted);line-height:1.7}
+.subtitle{display:grid;grid-template-columns:70px 1fr;gap:9px;padding:10px;border:1px solid transparent;border-radius:11px;margin-bottom:7px;background:#131529}
+.subtitle:hover{border-color:#3b3d5c}
+.subtitle.active{border-color:var(--accent);background:#1c1a35}
+.num{color:var(--muted);font-size:12px;padding-top:8px;text-align:center}
+.time{font-size:11px;color:#aeb1cb;margin-bottom:5px}
+.subtitle textarea{width:100%;min-height:62px;resize:vertical;line-height:1.5}
+.sub-actions{display:flex;gap:7px;margin-top:6px}
+.sub-actions button{padding:6px 9px;font-size:12px;background:#292b45}
+.settings{margin-top:18px;padding:14px;background:var(--panel);border:1px solid var(--line);border-radius:16px}
+.settings-grid{display:grid;grid-template-columns:1fr 220px;gap:12px}
+.small{font-size:12px;color:var(--muted);line-height:1.6;margin-top:6px}
+.mobile-tip{margin-top:10px;padding:10px;border-radius:9px;background:#151733;color:#c7c9dc;font-size:12px;line-height:1.6}
+.video-btn{background:#00a884}.video-btn:hover{background:#008f70}.long-video-box{margin:12px 14px 0;padding:12px;border:1px solid var(--line);border-radius:10px;background:#111326}.long-video-box strong{display:block;margin-bottom:5px}.long-video-box .small{line-height:1.55}.export-box{margin:12px 14px 0;padding:12px;border:1px solid var(--line);border-radius:10px;background:#111326}.export-box summary{cursor:pointer;font-weight:700}.export-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.export-grid label{font-size:12px;color:var(--muted)}.export-grid select{width:100%;margin-top:5px}.export-note{font-size:12px;color:var(--muted);line-height:1.55;margin-top:9px}.export-progress{height:5px;background:#292b45;border-radius:99px;overflow:hidden;margin-top:8px}.export-progress>div{height:100%;width:0;background:#00a884;transition:.15s}.warning{margin-top:12px;padding:11px;border-radius:9px;background:#241d16;color:#e6b98c;font-size:12px;line-height:1.6}
+@media(max-width:900px){
+  .grid{grid-template-columns:1fr}
+  .timeline{max-height:none}
+  .controls,.settings-grid{grid-template-columns:1fr}
+  .app{padding:12px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div>
+    <h1>🎬 Gemini AI 動画字幕翻訳</h1>
+    <div class="sub">動画 → Gemini → 字幕編集 → SRT</div>
+  </div>
+  <div class="header-actions"><button id="copyBtn" class="secondary" disabled>📋 SRTをコピー</button><button id="exportBtn" class="secondary" disabled>💾 SRTを保存</button><button id="videoExportBtn" class="video-btn" disabled>🎬 動画を保存</button></div>
+</header>
+
+<div class="grid">
+  <section class="panel">
+    <div class="toolbar">
+      <div class="controls">
+        <input id="video" type="file" accept="video/*">
+        <select id="language">
+          <option value="日本語">日本語</option>
+          <option value="English">English</option>
+          <option value="한국어">한국어</option>
+          <option value="中文">中文</option>
+          <option value="Español">Español</option>
+          <option value="Français">Français</option>
+          <option value="Deutsch">Deutsch</option>
+          <option value="Italiano">Italiano</option>
+          <option value="Português">Português</option>
+        </select>
+        <button id="start">🤖 字幕を作成</button>
+      </div>
+      <div id="fileInfo" class="small">動画を選択してください。</div>
+      <div id="status" class="status">待機中です。</div>
+      <div class="progress"><div id="progress"></div></div>
+    </div>
+
+    <div class="player-wrap">
+      <div class="video-stage">
+        <video id="player" controls playsinline></video>
+        <div id="subtitleOverlay" class="subtitle-overlay bottom"><span id="overlayText"></span></div>
+      </div>
+      <div class="overlay-controls">
+        <strong>動画内字幕プレビュー</strong>
+        <label for="overlayPosition">位置</label>
+        <select id="overlayPosition" aria-label="字幕位置">
+          <option value="bottom">下（標準）</option>
+          <option value="center">中央</option>
+        </select>
+        <label><input id="overlayEnabled" type="checkbox" checked> 表示</label>
+      </div>
+      <div class="player-info">
+        <span id="currentTime">00:00:00,000</span>
+        <span id="duration">00:00:00,000</span>
+      </div>
+    </div>
+
+    <div class="settings">
+      <label for="apiKey">Gemini API Key</label>
+      <input id="apiKey" type="password" placeholder="AIza..." autocomplete="off" style="width:100%">
+      <div class="small">Google AI Studioで取得したAPIキーを入力してください。キーはこのブラウザからGeminiへ送信されます。</div>
+      <div class="mobile-tip">📱 スマホでは動画をMP4で保存できる場合、共有メニューから「ビデオを保存」または「ファイルに保存」が選べます。</div>
+      <div class="warning">公開サイトで運用する場合、APIキーを自分のキーとして埋め込まない構成を検討してください。この版ではユーザー自身がキーを入力する方式です。</div>
+    </div>
+  </section>
+
+  <section class="panel editor">
+    <div class="editor-head">
+      <strong>📝 字幕タイムライン</strong>
+      <span id="count" class="count">0 件</span>
+    </div>
+    <div class="long-video-box">
+      <strong>⏱ 長時間動画</strong>
+      <div class="small">15分を超える動画は自動で10分前後の区間に分けてGeminiへ順番に解析し、字幕を1本に結合します。元動画をブラウザ側で分割・再エンコードしないので、通常の処理よりブラウザへの負荷を増やしにくい方式です。</div>
+    </div>
+    <div class="export-box">
+  <details>
+    <summary>🎬 動画として保存する設定</summary>
+    <div class="export-grid">
+      <label>画質<select id="videoQuality"><option value="light">スマホ軽量（720p / 30fps）</option><option value="high">高画質（元解像度優先 / 30fps）</option></select></label>
+      <label>字幕位置<select id="exportPosition"><option value="bottom">下</option><option value="center">中央</option></select></label>
+    </div>
+    <div class="export-note">動画保存を押した時だけ映像を再エンコードします。普段の字幕編集・SRT保存には動画エンコードを使いません。元動画ファイルは変更しません。</div>
+    <div class="export-progress"><div id="exportProgress"></div></div>
+  </details>
+</div>
+<div id="timeline" class="timeline">
+      <div class="empty">まだ字幕がありません。<br>動画を選択して「字幕を作成」を押してください。</div>
+    </div>
+  </section>
+</div>
+</div>
+
+<script type="module">
+import { GoogleGenAI } from "https://esm.sh/@google/genai@2.24.0";
+
+const MODEL = "gemini-3.8-flash";
+
+const apiKeyInput=document.getElementById("apiKey");
+const languageInput=document.getElementById("language");
+const videoInput=document.getElementById("video");
+const fileInfo=document.getElementById("fileInfo");
+const startButton=document.getElementById("start");
+const exportButton=document.getElementById("exportBtn");
+const copyButton=document.getElementById("copyBtn");
+const videoExportButton=document.getElementById("videoExportBtn");
+const videoQuality=document.getElementById("videoQuality");
+const exportPosition=document.getElementById("exportPosition");
+const exportProgress=document.getElementById("exportProgress");
+const statusBox=document.getElementById("status");
+const progressBar=document.getElementById("progress");
+const player=document.getElementById("player");
+const timeline=document.getElementById("timeline");
+const countBox=document.getElementById("count");
+const currentTimeBox=document.getElementById("currentTime");
+const durationBox=document.getElementById("duration");
+const subtitleOverlay=document.getElementById("subtitleOverlay");
+const overlayText=document.getElementById("overlayText");
+const overlayPosition=document.getElementById("overlayPosition");
+const overlayEnabled=document.getElementById("overlayEnabled");
+
+let subtitleData=[];
+let videoURL="";
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+function progress(v){progressBar.style.width=Math.max(0,Math.min(100,v))+"%"}
+function status(msg,type=""){statusBox.textContent=msg;statusBox.className="status"+(type?" "+type:"")}
+function readableError(e){
+  if(!e)return"不明なエラー";
+  if(typeof e==="string")return e;
+  if(e.message)return e.message;
+  try{return JSON.stringify(e,null,2)}catch{return String(e)}
+}
+function secToSrt(sec){
+  sec=Math.max(0,sec||0);
+  const h=Math.floor(sec/3600);
+  const m=Math.floor((sec%3600)/60);
+  const s=Math.floor(sec%60);
+  const ms=Math.round((sec-Math.floor(sec))*1000);
+  let mm=ms;
+  let ss=s, mi=m, hh=h;
+  if(mm>=1000){mm=0;ss++}
+  if(ss>=60){ss=0;mi++}
+  if(mi>=60){mi=0;hh++}
+  return `${String(hh).padStart(2,"0")}:${String(mi).padStart(2,"0")}:${String(ss).padStart(2,"0")},${String(mm).padStart(3,"0")}`;
+}
+function srtToSec(v){
+  const m=v.trim().match(/(\d{2}):(\d{2}):(\d{2}),(\d{3})/);
+  if(!m)return 0;
+  return +m[1]*3600 + +m[2]*60 + +m[3] + +m[4]/1000;
+}
+
+videoInput.addEventListener("change",()=>{
+  const file=videoInput.files[0];
+  subtitleData=[];
+  renderTimeline();
+  exportButton.disabled=true;
+  videoExportButton.disabled=true;
+  if(!file){fileInfo.textContent="動画を選択してください。";return}
+  const mb=file.size/1024/1024;
+  fileInfo.textContent=`${file.name} / ${mb.toFixed(1)} MB`;
+  if(videoURL)URL.revokeObjectURL(videoURL);
+  videoURL=URL.createObjectURL(file);
+  player.src=videoURL;
+  player.load();
+  videoExportButton.disabled=false;
+  status("動画を読み込みました。字幕生成後にSRT保存と動画保存が使えます。");
+});
+
+player.addEventListener("loadedmetadata",()=>{
+  durationBox.textContent=secToSrt(player.duration);
+  updateActiveSubtitle();
+});
+player.addEventListener("seeked",updateActiveSubtitle);
+player.addEventListener("pause",updateActiveSubtitle);
+player.addEventListener("timeupdate",()=>{
+  currentTimeBox.textContent=secToSrt(player.currentTime);
+  updateActiveSubtitle();
+});
+
+function updateActiveSubtitle(){
+  let active=-1;
+  for(let i=0;i<subtitleData.length;i++){
+    const sub=subtitleData[i];
+    if(player.currentTime>=sub.startSec && player.currentTime<sub.endSec){active=i;break}
+  }
+  document.querySelectorAll(".subtitle").forEach((el,i)=>{
+    el.classList.toggle("active",i===active);
+  });
+  if(overlayEnabled.checked && active>=0){
+    overlayText.textContent=subtitleData[active].text;
+    subtitleOverlay.classList.add("show");
+  }else{
+    overlayText.textContent="";
+    subtitleOverlay.classList.remove("show");
+  }
+}
+
+overlayPosition.addEventListener("change",()=>{
+  subtitleOverlay.classList.toggle("bottom",overlayPosition.value==="bottom");
+  subtitleOverlay.classList.toggle("center",overlayPosition.value==="center");
+});
+overlayEnabled.addEventListener("change",updateActiveSubtitle);
+
+function renderTimeline(){
+  countBox.textContent=`${subtitleData.length} 件`;
+  if(!subtitleData.length){
+    timeline.innerHTML='<div class="empty">まだ字幕がありません。<br>動画を選択して「字幕を作成」を押してください。</div>';
+    exportButton.disabled=true;
+    return;
+  }
+  exportButton.disabled=false;
+  videoExportButton.disabled=false;
+  timeline.innerHTML="";
+  subtitleData.forEach((sub,index)=>{
+    const row=document.createElement("div");
+    row.className="subtitle";
+    row.dataset.index=index;
+
+    const num=document.createElement("div");
+    num.className="num";
+    num.textContent=index+1;
+
+    const body=document.createElement("div");
+    const time=document.createElement("div");
+    time.className="time";
+    time.textContent=`${sub.start} → ${sub.end}`;
+
+    const textarea=document.createElement("textarea");
+    textarea.value=sub.text;
+    textarea.addEventListener("input",()=>{
+      subtitleData[index].text=textarea.value;
+    });
+
+    const actions=document.createElement("div");
+    actions.className="sub-actions";
+
+    const jump=document.createElement("button");
+    jump.textContent="▶ この字幕へ";
+    jump.addEventListener("click",()=>{
+      player.currentTime=sub.startSec;
+      player.play().catch(()=>{});
+    });
+
+    const remove=document.createElement("button");
+    remove.textContent="削除";
+    remove.className="danger";
+    remove.addEventListener("click",()=>{
+      subtitleData.splice(index,1);
+      renumber();
+      renderTimeline();
+    });
+
+    actions.append(jump,remove);
+    body.append(time,textarea,actions);
+    row.append(num,body);
+    row.addEventListener("click",(e)=>{
+      if(e.target.tagName==="TEXTAREA"||e.target.tagName==="BUTTON")return;
+      player.currentTime=sub.startSec;
+      updateActiveSubtitle();
+    });
+    timeline.append(row);
+  });
+  updateActiveSubtitle();
+}
+function renumber(){subtitleData.forEach((s,i)=>s.id=i+1)}
+
+function parseSRT(srt){
+  // Geminiが空行を省略したり、タイムコードの区切り方を変えても、
+  // タイムコードを基準に1字幕ずつ切り出す。
+  let normalized=(srt||"")
+    .replace(/\r/g,"")
+    .replace(/```(?:srt|text)?/gi,"")
+    .replace(/```/g,"")
+    .trim();
+  const cueRe=/(\d{2}:\d{2}:\d{2}[,.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,.]\d{3})/g;
+  const matches=[...normalized.matchAll(cueRe)];
+  const result=[];
+  for(let i=0;i<matches.length;i++){
+    const m=matches[i];
+    const textStart=m.index+m[0].length;
+    const textEnd=i+1<matches.length?matches[i+1].index:normalized.length;
+    let text=normalized.slice(textStart,textEnd).trim();
+    // 次の字幕番号が本文末尾に残った場合は除去。
+    // Geminiが空行を省略したSRTでも、次のタイムコード直前の番号を正しく除外する。
+    text=text.replace(/\n\s*\d+\s*$/,'').trim();
+    if(!text)continue;
+    const start=m[1].replace('.',',');
+    const end=m[2].replace('.',',');
+    const startSec=srtToSec(start), endSec=srtToSec(end);
+    if(!Number.isFinite(startSec)||!Number.isFinite(endSec)||endSec<=startSec)continue;
+    result.push({id:result.length+1,start,startSec,end,endSec,text});
+  }
+  if(!result.length)throw new Error("Geminiから正しいSRT形式の字幕を取得できませんでした。");
+  return result;
+}
+
+function cleanSRT(text){
+  let srt=(text||"").replace(/```srt/gi,"").replace(/```/g,"").replace(/\r\n/g,"\n").replace(/<br\s*\/?>/gi,"\n").trim();
+  const first=srt.search(/(?:^|\n)\s*1\s*\n\s*\d{2}:\d{2}:\d{2},\d{3}\s*-->/m);
+  if(first>0)srt=srt.substring(first);
+  return srt.replace(/\n{3,}/g,"\n\n").trim();
+}
+
+function toSRT(){
+  return subtitleData.map((s,i)=>`${i+1}\n${secToSrt(s.startSec)} --> ${secToSrt(s.endSec)}\n${s.text.trim()}`).join("\n\n");
+}
+
+async function downloadSRT(){
+  if(!subtitleData.length){status("⚠️ 先に字幕を生成してください。","error");return;}
+  const original=videoInput.files[0]?.name||"subtitles.mp4";
+  const base=original.replace(/\.[^/.]+$/i,"");
+  const filename=`${base}_subtitle.srt`;
+  const content="\uFEFF"+toSRT();
+  // iPhone/Androidでは text/plain のFileの方が共有シートとの互換性が高い。
+  const blob=new Blob([content],{type:"text/plain;charset=utf-8"});
+
+  // 1) スマホ：共有シート→「ファイルに保存」
+  try{
+    const file=new File([blob],filename,{type:"text/plain"});
+    const canShareFiles=!!navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}));
+    if(canShareFiles){
+      await navigator.share({files:[file],title:filename});
+      status("✅ 共有しました。iPhoneなら共有先から「ファイルに保存」を選べます。","success");
+      return;
+    }
+  }catch(e){
+    if(e?.name==="AbortError"){
+      status("共有をキャンセルしました。必要ならもう一度「SRTを保存」を押してください。","error");
+      return;
+    }
+  }
+
+  // 2) 通常のブラウザ保存（PC/Androidなど）
+  try{
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download=filename;a.rel="noopener";
+    a.style.display="none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},1500);
+    status("✅ SRTの保存を開始しました。","success");
+    return;
+  }catch(e){}
+
+  // 3) 最後の保険：SRT本文をコピーして、メモ/ファイルアプリへ保存できるようにする。
+  try{
+    await navigator.clipboard.writeText(toSRT());
+    status("📋 自動保存が使えないブラウザでした。SRT本文をコピーしました。メモ等に貼り付けて「.srt」で保存してください。","success");
+  }catch(e){
+    status("⚠️ このブラウザでは自動保存が制限されています。「SRTをコピー」を使って保存してください。","error");
+  }
+}
+
+async function copySRT(){
+  if(!subtitleData.length){status("⚠️ 先に字幕を生成してください。","error");return;}
+  try{
+    await navigator.clipboard.writeText(toSRT());
+    status("📋 SRT本文をコピーしました。","success");
+  }catch(e){
+    const ta=document.createElement("textarea");
+    ta.value=toSRT();document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();
+    status("📋 SRT本文をコピーしました。","success");
+  }
+}
+exportButton.addEventListener("click",downloadSRT);
+copyButton.addEventListener("click",copySRT);
+
+
+function setExportProgress(v){exportProgress.style.width=Math.max(0,Math.min(100,v))+"%"}
+function isIOS(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+function pickRecorderMime(){
+  const mp4Candidates=[
+    'video/mp4;codecs="avc1.424028,mp4a.40.2"',
+    'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
+    'video/mp4'
+  ];
+  const webmCandidates=[
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm'
+  ];
+  if(!window.MediaRecorder)return "";
+  const supported=x=>!MediaRecorder.isTypeSupported || MediaRecorder.isTypeSupported(x);
+  const mp4=mp4Candidates.find(supported);
+  if(mp4)return mp4;
+  // iPhone/iPadの写真アプリ向けにはWebMを出さない。SafariはMP4/H.264/AACをサポート。
+  if(isIOS())return "";
+  return webmCandidates.find(supported)||"";
+}
+function canvasFont(canvas){return `800 ${Math.max(18,Math.round(canvas.width*0.028))}px -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif`}
+function drawExportSubtitle(ctx,canvas,text,position){
+  if(!text)return;
+  const maxWidth=canvas.width*.88;
+  ctx.font=canvasFont(canvas); ctx.textAlign="center"; ctx.textBaseline="middle";
+  const words=text.split(/\n/); const lines=[];
+  for(const part of words){
+    let line="";
+    for(const ch of part){
+      const test=line+ch;
+      if(ctx.measureText(test).width>maxWidth && line){lines.push(line);line=ch}else line=test;
+    }
+    lines.push(line);
+  }
+  const lineH=Math.max(28,canvas.width*.038), total=lines.length*lineH;
+  const y=position==="center"?canvas.height/2:canvas.height*.88-total/2;
+  const pad=12;
+  const widths=lines.map(x=>ctx.measureText(x).width);
+  const boxW=Math.min(maxWidth,Math.max(...widths)+pad*2), boxH=total+pad;
+  ctx.fillStyle="rgba(0,0,0,.45)";ctx.fillRect((canvas.width-boxW)/2,y-boxH/2,boxW,boxH);
+  ctx.lineWidth=Math.max(3,canvas.width*.0035);ctx.strokeStyle="#000";ctx.fillStyle="#fff";
+  lines.forEach((line,i)=>{
+    const yy=y-total/2+lineH/2+i*lineH;
+    ctx.strokeText(line,canvas.width/2,yy);ctx.fillText(line,canvas.width/2,yy);
+  });
+}
+function activeSubtitleAt(t){return subtitleData.find(s=>t>=s.startSec && t<s.endSec)||null}
+async function saveBlob(blob,filename){
+  const isMp4=blob.type.toLowerCase().includes("mp4") || /\.mp4$/i.test(filename);
+  try{
+    const file=new File([blob],filename,{type:isMp4?"video/mp4":blob.type||"video/webm"});
+    const canShare=!!navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}));
+    if(canShare){
+      await navigator.share({files:[file],title:filename,text:isMp4?"字幕入り動画":"字幕入り動画"});
+      status(isMp4?"✅ 動画を共有しました。iPhoneなら共有先の「ビデオを保存」で写真アプリに保存できます。":"✅ 動画を共有しました。","success");
+      return true;
+    }
+  }catch(e){
+    if(e?.name==="AbortError"){status("動画の共有をキャンセルしました。","error");return false}
+  }
+  try{
+    const url=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=url;a.download=filename;a.rel="noopener";a.style.display="none";
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    status(isMp4?"✅ MP4動画の保存を開始しました。":"✅ 動画の保存を開始しました。","success");
+    return true;
+  }catch(e){
+    status("⚠️ 動画を保存できませんでした。共有メニューから保存を試してください。","error");
+    return false;
+  }
+}
+async function exportVideo(){
+  if(!subtitleData.length){status("⚠️ 先に字幕を生成してください。","error");return}
+  if(!player.videoWidth||!player.duration){status("⚠️ 動画を読み込んでから実行してください。","error");return}
+  if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream){
+    status("⚠️ このブラウザはブラウザ内動画書き出しに対応していません。SRT保存をご利用ください。","error");return;
+  }
+  const mime=pickRecorderMime();
+  if(!mime){
+    if(isIOS()) status("⚠️ このiPhone/iPadのブラウザでは、写真アプリで扱えるMP4動画の書き出しに対応していません。SRT保存は利用できます。","error");
+    else status("⚠️ このブラウザで利用できる動画書き出し形式がありません。","error");
+    return;
+  }
+  const wasPaused=player.paused; const oldTime=player.currentTime; const oldMuted=player.muted;
+  const sourceW=player.videoWidth,sourceH=player.videoHeight;
+  const light=videoQuality.value==="light";
+  const targetW=light?Math.min(1280,sourceW):sourceW;
+  const targetH=Math.round(targetW*sourceH/sourceW);
+  const canvas=document.createElement("canvas");canvas.width=targetW;canvas.height=targetH;
+  const ctx=canvas.getContext("2d",{alpha:false});
+  const canvasStream=canvas.captureStream(30);
+  let combined=canvasStream;
+  try{
+    if(typeof player.captureStream==="function"){
+      const sourceStream=player.captureStream();
+      sourceStream.getAudioTracks().forEach(t=>canvasStream.addTrack(t));
+    }
+  }catch(e){}
+  const bitrate=light?2_200_000:Math.min(8_000_000,Math.max(3_500_000,targetW*targetH*0.012));
+  let recorder;
+  try{recorder=new MediaRecorder(combined,{mimeType:mime,videoBitsPerSecond:bitrate,audioBitsPerSecond:128000})}
+  catch(e){recorder=new MediaRecorder(combined)}
+  const chunks=[]; recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};
+  const done=new Promise((resolve,reject)=>{recorder.onstop=()=>resolve();recorder.onerror=e=>reject(e.error||e)});
+  setExportProgress(0);videoExportButton.disabled=true;exportButton.disabled=true;
+  status(`🎬 ${light?"軽量":"高画質"}動画を書き出しています。画面操作は続けられます。\n元動画は変更されません。`);
+  player.pause();player.currentTime=0;player.muted=false;
+  const pos=exportPosition.value;
+  recorder.start(250);
+  const start=performance.now();
+  await new Promise((resolve,reject)=>{
+    let last=0;
+    const frame=()=>{
+      try{
+        ctx.drawImage(player,0,0,targetW,targetH);
+        const sub=activeSubtitleAt(player.currentTime);drawExportSubtitle(ctx,canvas,sub?.text||"",pos);
+        const pct=player.duration?player.currentTime/player.duration*100:0;
+        if(pct-last>1){setExportProgress(pct);last=pct;status(`🎬 動画を書き出しています… ${Math.floor(pct)}%\n${light?"720p軽量モード":"高画質モード"}`)}
+        if(player.ended || player.currentTime>=player.duration-.03){resolve();return}
+        requestAnimationFrame(frame);
+      }catch(e){reject(e)}
+    };
+    player.addEventListener("ended",resolve,{once:true});
+    requestAnimationFrame(frame);
+    player.play().catch(reject);
+  });
+  recorder.stop();await done;
+  const ext=mime.includes("mp4")?"mp4":"webm";
+  const original=videoInput.files[0]?.name||"video";const base=original.replace(/\.[^/.]+$/i,"");
+  const blob=new Blob(chunks,{type:mime});
+  if(isIOS() && ext!=="mp4"){
+    status("⚠️ iPhone/iPadでは写真アプリ用MP4が作れなかったため、WebMは保存しませんでした。","error");
+  }else{
+    await saveBlob(blob,`${base}_subtitle_${light?"light":"hq"}.${ext}`);
+  }
+  player.pause();player.currentTime=Math.min(oldTime,player.duration||0);player.muted=oldMuted;if(!wasPaused)player.play().catch(()=>{});
+  setExportProgress(100);videoExportButton.disabled=false;exportButton.disabled=false;
+}
+videoExportButton.addEventListener("click",()=>exportVideo().catch(e=>{videoExportButton.disabled=false;exportButton.disabled=false;status("⚠️ 動画書き出しに失敗しました。\n"+readableError(e),"error")}));
+
+function createClient(apiKey){return new GoogleGenAI({apiKey})}
+
+async function uploadVideo(ai,file){
+  status("📤 動画をGeminiへアップロードしています...");
+  progress(10);
+  const uploaded=await ai.files.upload({
+    file,
+    config:{mimeType:file.type||"video/mp4"}
+  });
+  if(!uploaded)throw new Error("Geminiへの動画アップロードに失敗しました。");
+  progress(25);
+  return uploaded;
+}
+
+async function waitForVideo(ai,uploaded){
+  let file=uploaded;
+  for(let attempt=0;attempt<120;attempt++){
+    const state=file.state?String(file.state):"";
+    if(state==="ACTIVE"||state.endsWith(".ACTIVE")){progress(45);return file}
+    if(state==="FAILED"||state.endsWith(".FAILED"))throw new Error("Gemini側で動画処理に失敗しました。");
+    status("⏳ 動画を処理しています...\n\n"+`状態: ${state||"PROCESSING"}\n`+`経過: ${attempt*5}秒`);
+    progress(Math.min(45,25+attempt*.2));
+    await sleep(5000);
+    file=await ai.files.get({name:file.name});
+  }
+  throw new Error("動画処理がタイムアウトしました。");
+}
+
+function formatPromptTime(sec){
+  const ms=Math.max(0,Math.round(sec*1000));
+  const h=Math.floor(ms/3600000); const m=Math.floor(ms%3600000/60000); const ss=Math.floor(ms%60000/1000); const x=ms%1000;
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(ss).padStart(2,"0")}.${String(x).padStart(3,"0")}`;
+}
+
+function normalizeCueText(text){
+  return String(text||"").replace(/\s+/g," ").trim().toLowerCase().replace(/[。、！？!?.,]/g,"");
+}
+
+function mergeChunkCues(allCues){
+  const sorted=[...allCues].sort((a,b)=>a.startSec-b.startSec||a.endSec-b.endSec);
+  const merged=[];
+  for(const cue of sorted){
+    const prev=merged[merged.length-1];
+    if(prev){
+      const sameText=normalizeCueText(prev.text)===normalizeCueText(cue.text);
+      const close=Math.abs(prev.startSec-cue.startSec)<=3.5;
+      const overlap=Math.min(prev.endSec,cue.endSec)-Math.max(prev.startSec,cue.startSec);
+      if((sameText&&close)||(sameText&&overlap>0)){
+        prev.startSec=Math.min(prev.startSec,cue.startSec);
+        prev.endSec=Math.max(prev.endSec,cue.endSec);
+        prev.start=secToSrt(prev.startSec); prev.end=secToSrt(prev.endSec);
+        continue;
+      }
+    }
+    merged.push({...cue});
+  }
+  merged.forEach((x,i)=>x.id=i+1);
+  return merged;
+}
+
+async function generateSRT(ai,videoFile,language,duration){
+  const LONG_THRESHOLD=15*60;
+  const CHUNK_SECONDS=10*60;
+  const OVERLAP_SECONDS=3;
+  const isLong=duration>LONG_THRESHOLD;
+  const ranges=[];
+  if(!isLong){
+    ranges.push({start:0,end:duration});
+  }else{
+    for(let start=0;start<duration;start+=CHUNK_SECONDS){
+      const end=Math.min(duration,start+CHUNK_SECONDS);
+      ranges.push({start:Math.max(0,start-(start>0?OVERLAP_SECONDS:0)),end});
+      if(end>=duration)break;
+    }
+  }
+
+  const allCues=[];
+  for(let index=0;index<ranges.length;index++){
+    const range=ranges[index];
+    const label=isLong?`区間 ${index+1}/${ranges.length}（${formatPromptTime(range.start)} ～ ${formatPromptTime(range.end)}）`:`動画全体（${formatPromptTime(duration)}）`;
+    status(`🤖 Gemini 3.8 Flashが動画を解析しています...\n\n${label}\n${isLong?"長時間動画モード：区間ごとに解析して自動結合しています。":"動画の長さによって時間がかかります。"}`);
+    const baseProgress=50+(index/ranges.length)*38;
+    progress(baseProgress);
+
+    const prompt=`
+あなたはプロの字幕制作AIです。
+
+アップロードされた動画のうち、${formatPromptTime(range.start)} から ${formatPromptTime(range.end)} の時間帯だけを詳しく確認してください。
+${range.start>0?"前後の発話が自然につながるよう、区間の先頭には少し重複時間があります。重複部分も確認して構いません。":""}
+動画内の実際の音声を聞き取り、音声の開始時間と終了時間を判断し、その字幕を ${language} に翻訳してください。
+
+【タイムコードの最重要ルール】
+・タイムコードは「動画全体の絶対時間」で記録する
+・区間の開始を 00:00:00 に戻さない
+・例えば動画の10分00秒付近を処理している場合、その字幕は 00:10:00,000 付近から始める
+・指定区間と無関係な時間の字幕は作らない
+・指定区間の境界をまたぐ発話は、実際の音声に合わせて自然な開始・終了時間にする
+
+【字幕ルール】
+・動画の実際の音声を使用する
+・動画の実際の時間情報を使用する
+・タイムコードを適当に推測しない
+・発話のない時間には字幕を作らない
+・長すぎる字幕は適切に分割する
+・自然で読みやすい${language}に翻訳する
+・字幕番号は1から順番にする
+・タイムコードは 00:00:01,000 --> 00:00:03,500 の形式にする
+・終了時間は開始時間より後にする
+
+【禁止】
+Markdownコードブロックは禁止。
+説明文は禁止。
+最終回答はSRT本文だけにしてください。
+`;
+
+    let raw="";
+    let lastError=null;
+    for(let retry=0;retry<2;retry++){
+      try{
+        const interaction=await ai.interactions.create({
+          model:MODEL,
+          input:[
+            {type:"text",text:prompt},
+            {type:"video",uri:videoFile.uri,mime_type:videoFile.mimeType}
+          ],
+          generation_config:{thinking_level:"low"}
+        });
+        raw=interaction.output_text||"";
+        if(!raw&&Array.isArray(interaction.steps)){
+          for(const step of interaction.steps){
+            if(Array.isArray(step.content)) for(const item of step.content) if(item.type==="text") raw+=item.text||"";
+          }
+        }
+        if(!raw.trim())throw new Error("Geminiから字幕が返ってきませんでした。");
+        lastError=null;break;
+      }catch(e){
+        lastError=e;
+        if(retry===0){
+          status(`⚠️ ${label} の解析を再試行しています...`);
+          await sleep(1500);
+        }
+      }
+    }
+    if(lastError)throw lastError;
+
+    const cues=parseSRT(cleanSRT(raw));
+    const maxEnd=Math.max(...cues.map(x=>x.endSec),0);
+    const rangeLength=range.end-range.start;
+    // モデルが区間内の相対時間で返した場合だけ、区間開始時刻を補正する。
+    if(range.start>0 && maxEnd<=rangeLength+5){
+      cues.forEach(x=>{x.startSec+=range.start;x.endSec+=range.start;x.start=secToSrt(x.startSec);x.end=secToSrt(x.endSec)});
+    }
+    for(const cue of cues){
+      if(cue.endSec>=range.start-0.5 && cue.startSec<=range.end+0.5) allCues.push(cue);
+    }
+    progress(50+((index+1)/ranges.length)*38);
+  }
+  const merged=mergeChunkCues(allCues);
+  if(!merged.length)throw new Error("指定された動画範囲から字幕を生成できませんでした。");
+  return merged;
+}
+
+startButton.addEventListener("click",async()=>{
+  startButton.disabled=true;
+  try{
+    const apiKey=apiKeyInput.value.trim();
+    if(!apiKey)throw new Error("Gemini API Keyを入力してください。");
+    const video=videoInput.files[0];
+    if(!video)throw new Error("動画ファイルを選択してください。");
+    if(!video.type.startsWith("video/"))throw new Error("動画ファイルを選択してください。");
+
+    subtitleData=[];
+    exportButton.disabled=true;
+    copyButton.disabled=true;
+    renderTimeline();
+    progress(0);
+
+    const ai=createClient(apiKey);
+    const uploaded=await uploadVideo(ai,video);
+    const ready=await waitForVideo(ai,uploaded);
+    const duration=Number.isFinite(player.duration)&&player.duration>0?player.duration:0;
+    const cues=await generateSRT(ai,ready,languageInput.value,duration);
+
+    status("📝 SRTを編集可能な字幕データに変換しています...");
+    progress(90);
+    subtitleData=cues;
+    renderTimeline();
+    exportButton.disabled=false;
+    copyButton.disabled=false;
+    progress(100);
+    status(`✅ 字幕を読み込みました。\n\n${subtitleData.length}件を動画上で確認できます。\n動画を再生すると発言ごとに字幕が自動で切り替わります。必要なら下のタイムラインで文章を編集できます。`,"success");
+  }catch(error){
+    console.error(error);
+    progress(0);
+    status("❌ エラーが発生しました。\n\n"+readableError(error),"error");
+  }finally{
+    startButton.disabled=false;
+  }
+});
+
+window.addEventListener("beforeunload",()=>{if(videoURL)URL.revokeObjectURL(videoURL)});
+</script>
+</body>
+</html>
